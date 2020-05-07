@@ -1,84 +1,366 @@
-# Example
+# VSCode extension inside a nx workspace
 
-This project was generated using [Nx](https://nx.dev).
+This article is deeply inspired by [nx console](https://github.com/nrwl/nx-console) where most of the concepts come from.
+The code below is available in this repository.
 
-<p align="center"><img src="https://raw.githubusercontent.com/nrwl/nx/master/nx-logo.png" width="450"></p>
+## Create the workspace
+Create an nx workspace. Let's keep it empty for now and use the angular CLI.
+```
+npx create-nx-workspace studio
+-> What to create in the new workspace: empty
+-> CLI to power the Nx workspace      : Angular CLI
 
-🔎 **Nx is a set of Extensible Dev Tools for Monorepos.**
+cd studio/
+```
 
-## Quick Start & Documentation
+## Create vscode extension application
 
-[Nx Documentation](https://nx.dev/angular)
+### Scaffold the app
+vscode extension are node programs that run inside the ide.
 
-[10-minute video showing all Nx features](https://nx.dev/angular/getting-started/what-is-nx)
+We'll need `@nrwl/node` schematics for that : 
+```
+npm i -D @nrwl/node
+ng generate @nrwl/node:application vs-code
+```
 
-[Interactive Tutorial](https://nx.dev/angular/tutorial/01-create-application)
+### Setup vscode
+This application is the empty point for your extension and requires the vsode api : 
+```
+npm i vscode
+```
 
-## Adding capabilities to your workspace
+Now let's update the `main.ts` file inside our app : 
+```typescript
+import { commands, ExtensionContext, window } from 'vscode';
 
-Nx supports many plugins which add capabilities for developing different types of applications and different tools.
+// On activation
+export function activate(context: ExtensionContext) {
+  // Register command "start" 
+  commands.registerCommand('start', () => {
+    window.showInformationMessage('Hello World');
+  })
+}
+```
 
-These capabilities include generating applications, libraries, etc as well as the devtools to test, and build projects as well.
+This code associates a callback that shows "Hello World" with the command "start", when the extension in activated. Now we need to : 
+- Create the command.
+- Activate the extension when the command is triggered.
 
-Below are some plugins which you can add to your workspace:
+For that vscode needs a `package.json`. Let's add it **in the same folder as `main.ts`** :
+```json
+{
+  "name": "studio",
+  "version": "0.0.0",
+  "main": "main.js",
+  "engines": {
+    "vscode": "^1.44.0"
+  },
+  "contributes": {
+    "commands": [{
+      "command": "start",
+      "title": "Start My Extension"
+    }]
+  },
+  "activationEvents": [
+    "onCommand:start"
+  ]
+}
+```
 
-- [Angular](https://angular.io)
-  - `ng add @nrwl/angular`
-- [React](https://reactjs.org)
-  - `ng add @nrwl/react`
-- Web (no framework frontends)
-  - `ng add @nrwl/web`
-- [Nest](https://nestjs.com)
-  - `ng add @nrwl/nest`
-- [Express](https://expressjs.com)
-  - `ng add @nrwl/express`
-- [Node](https://nodejs.org)
-  - `ng add @nrwl/node`
+Let's keep it to the bare minimum for now:
+- `contributes`: This is where we create the command "start"
+- `activationEvents`: This will activate the extension when command "start" is triggered.
 
-## Generate an application
+### Build the extension
+When running `ng build vs-code` it will only outputs the `main.js` files, **not the `package.json`**.
 
-Run `ng g @nrwl/angular:app my-app` to generate an application.
+To solve that let's update `angular.json` Under `projects/vs-code/architect/build/options/assets` add the path to `package.json`: 
+```json
+"assets": [
+  "apps/vs-code/src/assets",
+  "apps/vs-code/src/package.json"
+]
+```
 
-> You can use any of the plugins above to generate applications as well.
+Run `ng build vs-code` again. Everything is ready !
 
-When using Nx, you can create multiple applications and libraries in the same workspace.
+## Setup launch.json & tasks.json
+To run a vscode extension in development mode you need to create `launch.json` & `tasks.json` inside the folder `.vscode`.
 
-## Generate a library
+I just pasted the code from the `yo` generator for vscode extension & change the `extensionDevelopmentPath` argument :
 
-Run `ng g @nrwl/angular:lib my-lib` to generate a library.
+**`launch.json`**
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Extension In Dev Mode",
+      "type": "extensionHost",
+      "request": "launch",
+      "runtimeExecutable": "${execPath}",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/dist/apps/vs-code"
+      ],
+      "trace": "false",
+      "internalConsoleOptions": "openOnFirstSessionStart",
+      "outFiles": [
+        "${workspaceFolder}/dist/apps/vs-code"
+      ],
+      "preLaunchTask": "${defaultBuildTask}"
+    }
+  ]
+}
+```
 
-> You can also use any of the plugins above to generate libraries as well.
+**`tasks.json`**
+```json
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "npm",
+			"script": "watch",
+			"problemMatcher": "$tsc-watch",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never"
+			},
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		}
+	]
+}
+```
 
-Libraries are sharable across libraries and applications. They can be imported from `@example/mylib`.
+> I'm pretty sure there is a bunch of improvement to do here. But it worked in my case so I didn't looked too much into details.
 
-## Development server
+## Try it out
+First build you node app : 
+```
+ng build vs-code --watch
+```
 
-Run `ng serve my-app` for a dev server. Navigate to http://localhost:4200/. The app will automatically reload if you change any of the source files.
+Then press **F5**. It should open a new vscode window. For there hit `Ctrl+p` and write : 
+```
+> Start My Extension
+```
+If everything goes well, you should see a message "Hello World" 🎉.
 
-## Code scaffolding
+> "Start My Extension" is the value we gave on the command "start" in the `package.json`.
 
-Run `ng g component my-component --project=my-app` to generate a new component.
 
-## Build
 
-Run `ng build my-app` to build the project. The build artifacts will be stored in the `dist/` directory. Use the `--prod` flag for a production build.
+## Create a Webview with Angular
+vscode extensions are powerful but the exposed API is quite limited when it comes to user interaction.
+Fortunately the API can run HTML code inside a webview. Let's update the `main.ts` :
 
-## Running unit tests
+```typescript
+import { commands, ExtensionContext, window, ViewColumn } from 'vscode';
 
-Run `ng test my-app` to execute the unit tests via [Jest](https://jestjs.io).
+// On activation
+export function activate(context: ExtensionContext) {
+  // Register command "start" 
+  commands.registerCommand('start', () => {
+    const panel = window.createWebviewPanel(
+      'studio', // Key used to reference the panel
+      'Studio', // Title display in the tab
+      ViewColumn.Active, // Editor column to show the new webview panel in.
+      { enableScripts: true });
 
-Run `nx affected:test` to execute the unit tests affected by a change.
+    panel.webview.html = '<h1>Hello World</h1>';
+    
+    context.subscriptions.push(panel);
+  })
+}
+```
 
-## Running end-to-end tests
+If you didn't stop your debugger you just need to click Restart (Ctrl+Shift+F5). And play "Start My Extension".
 
-Run `ng e2e my-app` to execute the end-to-end tests via [Cypress](https://www.cypress.io).
+Now you should see "Hello World" in a new tab 🎉. 
 
-Run `nx affected:e2e` to execute the end-to-end tests affected by a change.
+This is a good start, but as you can imagine it's going to be a pain to build a decent UX with a single html string. Let's see how we can connect an Angular application instead.
 
-## Understand your workspace
 
-Run `nx dep-graph` to see a diagram of the dependencies of your projects.
+### Create Angular Application
+Create the application
+```
+npm i -D @nrwl/angular
+ng generate @nrwl/angular:application studio
+```
 
-## Further help
+The first thing to do it update the `outputPath` of the angular application to put it inside the dist folder of the `vs-code` extension: 
 
-Visit the [Nx Documentation](https://nx.dev/angular) to learn more.
+In `angular.json` change `projects/studio/architect/build/options/outputPath` to : 
+```
+"outputPath": "dist/apps/vs-code/studio"
+```
+
+Also, because your app is not served by a server you need to `useHash` for your router : 
+```typescript
+RouterModule.forRoot([], { useHash: true })
+```
+
+run `ng build studio`. The application will be outputed inside the `vs-code` project.
+
+### Run angular inside webview
+Now we would like to do something like that : 
+```typescript
+import { promises as fs } from 'fs'; // Require @types/node@latest
+import { join } from 'path';
+
+// On activation
+export function activate(context: ExtensionContext) {
+  // Register command "start" 
+  commands.registerCommand('start', async () => {
+    ...
+    const indexPath = join(context.extensionPath, 'studio/index.html');
+    const html = await fs.readFile(indexPath, 'utf-8');
+    panel.webview.html = html;
+    ...
+  })
+}
+```
+
+But webview required special vscode [URI to load local content](https://code.visualstudio.com/api/extension-guides/webview#loading-local-content). For that we need to transform all `src` & `href` into an URI. We can achieve that with a regex : 
+
+```typescript
+const html = await fs.readFile(join(context.extensionPath, 'studio/index.html'), 'utf-8');
+
+// 1. Get all link prefixed by href or src
+const matchLinks = /(href|src)="([^"]*)"/g;
+// 2. Transform the result of the regex into a vscode's URI format
+const toUri = (_, prefix: 'href' | 'src', link: string) => {
+  // For <base href="#" />
+  if (link === '#') {
+    return `${prefix}="${link}"`;
+  }
+  // For scripts & links
+  const path = join(context.extensionPath, 'studio', link);
+  const uri = Uri.file(path);
+  return `${prefix}="${panel.webview['asWebviewUri'](uri)}"`;
+};
+// 3. Replace the all link from the index.html into a URI format
+panel.webview.html = html.replace(matchLinks, toUri);
+```
+
+Ok, if like me you're not a regex wizard, let's take a closer look : 
+1. This regex will capture all links prefixed by either "href" or "src" in the built index.html.
+2. We transform the result of the match into a URI based that point to right directory.
+3. We replace all links with the right URI.
+
+> At the time of writing (May 2020) the `asWebviewUri` isn't available in the types of "webview" but is in the doc & works.
+
+Here is the full code : 
+```typescript
+import { commands, ExtensionContext, window, ViewColumn, Uri } from 'vscode';
+import { promises as fs } from 'fs';
+import { join } from 'path';
+
+// On activation
+export function activate(context: ExtensionContext) {
+  // Register command "start" 
+  commands.registerCommand('start', async () => {
+    const panel = window.createWebviewPanel(
+      'studio',
+      'Studio',
+      ViewColumn.Active,
+      {
+        enableScripts: true,
+        localResourceRoots: [Uri.file(join(context.extensionPath, 'studio'))]
+      });
+
+    const html = await fs.readFile(join(context.extensionPath, 'studio/index.html'), 'utf-8');
+
+    const matchLinks = /(href|src)="([^"]*)"/g;
+    const toUri = (_, prefix: 'href' | 'src', link: string) => {
+      // For <base href="#" />
+      if (link === '#') {
+        return `${prefix}="${link}"`;
+      }
+      // For scripts & links
+      const path = join(context.extensionPath, 'studio', link);
+      const uri = Uri.file(path);
+      return `${prefix}="${panel.webview['asWebviewUri'](uri)}"`;
+    };
+
+    panel.webview.html = html.replace(matchLinks, toUri);
+    
+    context.subscriptions.push(panel);
+  })
+}
+```
+
+> The snippet above adds `localResourceRoots` in the options to make sure we can only load local content from this directory.
+
+### Build and test
+Let's run everything. 
+```
+ng build studio --prod
+ng build vs-code
+```
+Then press "F5" to open a new window and inside : 
+- Press Ctrl+P
+- Write "Start Extension"
+
+Now your angular application should open on a new tab 🚀
+
+
+## Watch
+Our application is running in a webview but if we change something inside it doesn't update the webview.
+
+### Listen on changes
+The idea is to listen on file changes, and reassign the `webview.html`. 
+In `main.ts` let's add a listener in development mode : 
+```typescript
+const index = join(context.extensionPath, 'studio/index.html');
+
+// Refresh the webview on update from the code
+const updateWebview = async () => {
+  const html = await fs.readFile(index, 'utf-8');
+  panel.webview.html = html.replace(matchLinks, toUri);
+}
+
+// In dev mode listen on changes from index.html & update the view
+if (!environment.production) {
+  watch(index).on('change', updateWebview)
+}
+// First render
+updateWebview();
+```
+
+For this to work we need to enable `outputHashing` in development mode for our angular app.
+In `angular.json` update `projects/studio/architect/build/options/outputHashing` to "all" 
+```
+"outputHashing": "all"
+```
+
+> Each time a change occurs in the code, every chunk depending on this change will be triggered will have a new hash. `index.html` beeing the root we should catch all changes.
+
+### Build and watch
+
+Now we need to build our extension & angular application in watch mode in two terminals :
+
+```
+ng build studio --watch
+ng build vs-code --watch
+```
+
+Press "F5", run the command and change your code to see the refresh.
+
+### Hot Module Reload
+I didn't implemented yet, but a little bit of code we should be able to create a Hot Module Reload by keeping the state in the extension. It's actually recommended to keep the application stateless and pass set the state on vscode with [`setState` & `getState`](https://code.visualstudio.com/api/extension-guides/webview#persistence).
+
+
+## Conclusion
+After a little bit of work we have everything needed to build our vscode extension with a webview. Now you can shre your libraries with the extension & webview.
+
+### Limitations
+The main limitation I found was the inability to use lazy loaded modules. I think it's because of the vscode URI requirement, but it might comes from somewhere else...
+
+### Thanks
+Special thanks to the Nrwl team for building nx workspace & nx console. Please take a look at the [nx console repository](https://github.com/nrwl/nx-console) for more advanced settings (test, ci, ...).
+Also many thanks to Bruce Delorme for his help with the Regular Expression.
