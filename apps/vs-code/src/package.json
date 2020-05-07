@@ -1,0 +1,17 @@
+{
+  "name": "studio",
+  "version": "0.0.0",
+  "main": "main.js",
+  "engines": {
+    "vscode": "^1.44.0"
+  },
+  "contributes": {
+    "commands": [{
+      "command": "start",
+      "title": "Start Studio Extension"
+    }]
+  },
+  "activationEvents": [
+    "onCommand:start"
+  ]
+}

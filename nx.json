@@ -18,5 +18,16 @@
       }
     }
   },
-  "projects": {}
+  "projects": {
+    "vs-code": {
+      "tags": []
+    },
+    "studio": {
+      "tags": []
+    },
+    "studio-e2e": {
+      "tags": [],
+      "implicitDependencies": ["studio"]
+    }
+  }
 }
